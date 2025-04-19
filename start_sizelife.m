@@ -1,6 +1,6 @@
-function [accu, rec, status, exception] = start_numlet(run, window_ptr, window_rect, prac)
+function [accu, rec, status, exception] = start_sizelife(run, window_ptr, window_rect, prac)
 % arguments
-%     opts.SkipSyncTests (1, 1) {mustBeNumericOrLogical} = false
+%     opts.SkipSyncTests (1,1) {mustBeNumericOrLogical} = false
 % end
 
 % ---- configure exception ----
@@ -8,23 +8,23 @@ status = 0;
 exception = [];
 accu = 0.00;
 
-% ---- configure sequence ---- %
+% ---- configure sequence ----
 if nargin > 3 && prac == 1
-    config = readtable(fullfile("config_prac", "numlet_prac.xlsx"));
+    config = readtable(fullfile("config_prac", "sizelife_prac.xlsx"));
 else
-    TaskFile = sprintf('numlet_run%d.xlsx', run);
-    config = readtable(fullfile("config/numlet_config", TaskFile));
+    TaskFile = sprintf('sizelife_run%d.xlsx', run);
+    config = readtable(fullfile("config/sizelife_config", TaskFile));
 end
 rec = config;
 rec.onset_real = nan(height(config), 1);
 rec.resp_raw = cell(height(config), 1);
 rec.resp = cell(height(config), 1);
 rec.rt = nan(height(config), 1);
-rec.cort = nan(height(config),1);
 timing = struct( ...
     'iti', 0.5, ... % inter-trial-interval
     'tdur', 2.5); % trial duration
 
+imageFolder = 'stimuli/sizelife_stimuli';       % figure folder
 
 % % ---- configure screen and window ----
 % % setup default level of 2
@@ -34,7 +34,7 @@ timing = struct( ...
 % % set the start up screen to black
 % old_visdb = Screen('Preference', 'VisualDebugLevel', 1);
 % % do not skip synchronization test to make sure timing is accurate
-% old_sync = Screen('Preference', 'SkipSyncTests', double(opts.SkipSyncTests));
+% old_sync = Screen('Preference', 'SkipSyncTests', 0);
 % % use FTGL text plugin
 % old_text_render = Screen('Preference', 'TextRenderer', 1);
 % % set priority to the top
@@ -45,18 +45,17 @@ timing = struct( ...
 keys = struct( ...
     'start', KbName('s'), ...
     'exit', KbName('Escape'), ...
-    'left', KbName('1!'), ...
-    'right', KbName('4$'));
-
+    'Y', KbName('1!'), ...
+    'N', KbName('4$') );
 
 % ---- stimuli presentation ----
 % the flag to determine if the experiment should exit early
 early_exit = false;
 try
-    % % open a window and set its background color as black
+    %  % open a window and set its background color as black
     % [window_ptr, window_rect] = PsychImaging('OpenWindow', ...
     %     screen_to_display, BlackIndex(screen_to_display));
-    [xcenter, ycenter] = RectCenter(window_rect);
+    % % [xcenter, ycenter] = RectCenter(window_rect);
     % % disable character input and hide mouse cursor
     % ListenChar(2);
     % HideCursor;
@@ -67,42 +66,40 @@ try
     % Screen('TextSize', window_ptr, round(0.06 * RectHeight(window_rect)));
     % % get inter flip interval
     ifi = Screen('GetFlipInterval', window_ptr);
-    % 
-    % % ---- configure stimuli ----
-    ratio_size = 0.3;
-    stim_window = [0, 0, RectWidth(window_rect), ratio_size * RectHeight(window_rect)];
-    SquareFig = [0 0 250 100];
 
-   % display welcome/instr screen and wait for a press of 's' to start
-    Inst = imread('Instruction\numlet.jpg');
-    tex = Screen('MakeTexture',window_ptr, Inst);
-    Screen('DrawTexture', window_ptr, tex);
-    Screen('Flip', window_ptr);   % show stim, return flip time
+    % ---- configure stimuli ----
+    % r = CenterRect([0 0 1 1]*p.sz, window_rect);
+
+    % display welcome/instr screen and wait for a press of 's' to start
+    sq=imread('Instruction\sizelife.jpg');
+    tex=Screen('MakeTexture',window_ptr,sq);
+    Screen('DrawTexture',window_ptr,tex);
+    Screen('Flip',window_ptr); 
     WaitSecs(4.5);
     vbl = Screen('Flip', window_ptr); 
     WaitSecs(0.5);
     start_time = vbl + 0.5;
-
+    
     % while ~early_exit
     %     % here we should detect for a key press and release
-    %     [~, key_code] = KbStrokeWait(-1);
+    %     [resp_timestamp, key_code] = KbStrokeWait(-1);
     %     if key_code(keys.start)
-    %         vbl = Screen('Flip',window_ptr);
-    %         pause(0.5)
-    %         start_time = vbl + 0.5;
+    %         start_time = resp_timestamp;
     %         break
     %     elseif key_code(keys.exit)
     %         early_exit = true;
     %     end
     % end
 
+
     % main experiment
     for trial_order = 1:height(config)
         if early_exit
             break
         end
-        this_trial = config(trial_order, :);
-        stim_str = [num2str(this_trial.number), '    ', this_trial.letter{:}];
+         this_trial = config(trial_order, :);
+        % stim_str = [num2str(this_trial.shape), '    ', this_trial.color{:}];
+        
 
         % initialize responses
         resp_made = false;
@@ -114,7 +111,7 @@ try
         trial_end = stim_offset + timing.iti;
         onset_timestamp = nan;
         offset_timestamp = nan;
-       
+
         % now present stimuli and check user's response
         while ~early_exit
             [key_pressed, timestamp, key_code] = KbCheck(-1);
@@ -138,21 +135,49 @@ try
                 if timestamp >= stim_offset && isnan(offset_timestamp)
                     offset_timestamp = vbl;
                 end
+
             elseif timestamp < stim_offset - 0.5 * ifi
-                
-                switch this_trial.task{:}
-                    case 'number' % upper part
-                        ycenter_stim = ycenter - ratio_size / 2 * RectHeight(window_rect);
-                    case 'letter' % lower part
-                        ycenter_stim = ycenter + ratio_size / 2 * RectHeight(window_rect);
-                end
-                DrawFormattedText(window_ptr, stim_str, ...
-                    'center', 'center', ...
-                    WhiteIndex(window_ptr), [], [], [], [], [], ...
-                    CenterRectOnPoint(stim_window, xcenter, ycenter_stim));
-                SquareRect = CenterRectOnPointd(SquareFig, xcenter, ycenter_stim);
-                Screen('FrameRect', window_ptr, WhiteIndex(window_ptr), SquareRect, 5);
-                vbl = Screen('Flip', window_ptr);
+                   centerImg_name = this_trial.pic;
+                   topImg_name = this_trial.task;
+                   centerImg = fullfile(imageFolder, centerImg_name);
+                   topImg = fullfile(imageFolder, topImg_name);
+
+                   % Ensure centerImg is a character vector or string scalar
+                   if iscell(centerImg)
+                       centerImg = centerImg{1};  
+                   end
+
+                   if iscell(topImg)
+                      topImg = topImg{1};  % Extract cell content
+                   end
+                   centerImage = imread(centerImg);
+                   topImage = imread(topImg);
+                    
+                   centerImage = imresize(centerImage, 0.44, "nearest");
+
+                   % Create texture
+                   centerTexture = Screen('MakeTexture', window_ptr, centerImage);
+                   topTexture = Screen('MakeTexture', window_ptr, topImage);
+                   [screenWidth, screenHeight] = Screen('WindowSize', window_ptr);
+
+                   % Calculate dimensions for the center image while maintaining aspect ratio
+                   centerWidth = size(centerImage, 2); 
+                   centerHeight = size(centerImage, 1); 
+                   centerRect = [0, 0, centerWidth, centerHeight];
+                   centerRect = CenterRectOnPoint(centerRect, screenWidth / 2, screenHeight / 2);
+
+                   % Calculate dimensions for the top image while maintaining aspect ratio
+                   topWidth = size(topImage, 2); 
+                   topHeight = size(topImage, 1); 
+                   topRect = [0, 0, topWidth, topHeight];
+                   topY = centerRect(2) - topHeight - 15;                  
+                   topRect = CenterRectOnPoint(topRect, screenWidth/2, topY); 
+
+                   % Draw the textures on the screen
+                   Screen('DrawTexture', window_ptr, centerTexture, [], centerRect);
+                   Screen('DrawTexture', window_ptr, topTexture, [], topRect);
+                   vbl = Screen('Flip', window_ptr);
+ 
                 if isnan(onset_timestamp)
                     onset_timestamp = vbl;
                 end
@@ -166,7 +191,7 @@ try
             rt = 0;
         else
             resp_raw = string(strjoin(cellstr(KbName(resp_code)), '|'));
-            valid_names = {'left', 'right'};
+            valid_names = {'Y', 'N'};
             valid_codes = cellfun(@(x) keys.(x), valid_names);
             if sum(resp_code) > 1 || (~any(resp_code(valid_codes)))
                 resp = 'invalid';
@@ -175,15 +200,15 @@ try
             end
             rt = resp_timestamp - onset_timestamp;
         end
-        score = strcmp(rec.cresp(trial_order), resp);
+        score = strcmp(rec.cresp(trial_order), resp); 
         rec.onset_real(trial_order) = onset_timestamp - start_time;
         rec.resp_raw{trial_order} = resp_raw;
         rec.resp{trial_order} = resp;
         rec.rt(trial_order) = rt;
         rec.cort(trial_order) = score;
     end
-    accu = sum(rec{:, 10} == 1) / (height(config));
-
+     accu = sum(rec{:, 10} == 1) / (height(config));
+     % disp(['正确率: ', num2str(accu * 100), '%']);
 catch exception
     status = -1;
 end
